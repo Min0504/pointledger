@@ -10,7 +10,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -21,24 +20,30 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * 통합 테스트 공통 기반 — 실제 PostgreSQL 16 (Testcontainers).
  * CHECK 제약·부분 유니크 인덱스·append-only 트리거·FOR UPDATE가 검증 대상이라
  * 인메모리 DB로는 테스트가 성립하지 않는다 (기획서 §11).
+ *
+ * 컨테이너는 싱글턴 패턴으로 직접 기동한다 — @Container 정적 필드는 테스트 클래스가
+ * 끝날 때 내려가지만 Spring 컨텍스트 캐시는 클래스를 넘어 살아남으므로, 두 번째
+ * 클래스부터 죽은 컨테이너의 포트를 바라보는 사고가 난다. JVM 종료 시 Ryuk이 정리한다.
  */
-@Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public abstract class IntegrationTest {
 
-    @Container
-    @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+
+    static {
+        POSTGRES.start();
+    }
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("jwt.secret", () -> "test-jwt-secret-must-be-32-bytes!!!");
     }
 
