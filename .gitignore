@@ -1,0 +1,19 @@
+# ── Java / Gradle
+backend/build/
+backend/.gradle/
+*.class
+hs_err_pid*
+
+# ── Node / 프론트
+node_modules/
+frontend/dist/
+
+# ── IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# ── 로컬 환경
+.env
+*.local
