@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: pointledger
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:55433/pointledger}
+    username: ${DATABASE_USERNAME:pointledger}
+    password: ${DATABASE_PASSWORD:pointledger}
+
+  jpa:
+    hibernate:
+      # 스키마 변경 권한은 Flyway에만 있다. validate는 "엔티티 매핑이 실제 스키마와
+      # 다르면 부팅 실패" — 매핑 오류를 런타임 쿼리가 아니라 시작 시점에 잡는다.
+      ddl-auto: validate
+    open-in-view: false # OSIV는 커넥션을 뷰 렌더링까지 붙잡는다 — API 서버에선 끈다
+    properties:
+      hibernate:
+        default_batch_fetch_size: 100
+
+  flyway:
+    enabled: true
+
+jwt:
+  # 운영자(백오피스) 전용 — 서버 간 호출은 JWT가 아니라 X-API-Key를 쓴다 (기획서 §9)
+  secret: ${JWT_SECRET}
+  ttl-sec: ${JWT_TTL_SEC:3600} # 운영자 세션 1시간 — refresh 없음(내부 도구, 재로그인이 더 단순)
+
+pointledger:
+  admin:
+    # 최초 기동 시 이 운영자 계정이 없으면 생성한다 — 내부 백오피스라 셀프 가입이 없다
+    email: ${PL_ADMIN_EMAIL:admin@pointledger.io}
+    password: ${PL_ADMIN_PASSWORD:}
+
+springdoc:
+  swagger-ui:
+    path: /docs
+
+server:
+  port: ${PORT:8081}
+
+logging:
+  level:
+    org.hibernate.SQL: ${SQL_LOG_LEVEL:info}

@@ -1,0 +1,18 @@
+# 로컬 개발용 인프라 — 테스트는 Testcontainers가 자체 기동하므로 이건 개발 서버 전용.
+# Redis가 없는 것은 의도다: 잔액은 캐시하면 안 되는 데이터고(낡은 잔액 = 정합성 사고),
+# 배치 분산 락은 ShedLock(JDBC)으로 해결한다 — 기획서 §3.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pointledger-dev-postgres
+    environment:
+      POSTGRES_USER: pointledger
+      POSTGRES_PASSWORD: pointledger
+      POSTGRES_DB: pointledger
+    ports:
+      - '55433:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pointledger']
+      interval: 5s
+      timeout: 3s
+      retries: 5
