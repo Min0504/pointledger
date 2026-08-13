@@ -31,7 +31,9 @@ public final class LedgerDtos {
             @NotNull Long userId,
             @NotNull @Positive Long amount,
             @NotBlank @Size(max = 20) String refType,
-            @NotBlank @Size(max = 64) String refId) {
+            @NotBlank @Size(max = 64) String refId,
+            // 사용처 가맹점 — 정산 대상이면 지정, 미지정 사용은 정산에서 제외
+            Long merchantId) {
     }
 
     /** consumedLots — 이 사용이 어느 적립분에서 나갔는지 (기획서 §8 응답 예시) */
@@ -80,13 +82,13 @@ public final class LedgerDtos {
 
     public record LedgerEntryView(
             Long id, String type, long amount, long balanceAfter,
-            String refType, String refId, Long relatedEntryId,
+            String refType, String refId, Long relatedEntryId, Long merchantId,
             String reason, String createdBy, Instant createdAt) {
 
         public static LedgerEntryView from(LedgerEntry e) {
             return new LedgerEntryView(e.getId(), e.getType().name(), e.getAmount(),
                     e.getBalanceAfter(), e.getRefType(), e.getRefId(), e.getRelatedEntryId(),
-                    e.getReason(), e.getCreatedBy(), e.getCreatedAt());
+                    e.getMerchantId(), e.getReason(), e.getCreatedBy(), e.getCreatedAt());
         }
     }
 
