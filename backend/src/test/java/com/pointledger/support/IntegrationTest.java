@@ -74,6 +74,8 @@ public abstract class IntegrationTest {
         jdbc.execute("""
                 TRUNCATE TABLE lot_consumptions, idempotency_requests, point_lots,
                                ledger_entries, wallets, api_keys, operators,
+                               settlement_lines, settlements, merchants,
+                               reconcile_issues, external_order_records,
                                batch_job_instance, shedlock
                 RESTART IDENTITY CASCADE
                 """);
@@ -110,6 +112,12 @@ public abstract class IntegrationTest {
         headers.setBearerAuth(token);
         headers.set("Idempotency-Key", idempotencyKey);
         return exchange(HttpMethod.POST, path, body, headers);
+    }
+
+    protected ResponseEntity<Map<String, Object>> adminGet(String path, String token) {
+        HttpHeaders headers = jsonHeaders();
+        headers.setBearerAuth(token);
+        return exchange(HttpMethod.GET, path, null, headers);
     }
 
     protected ResponseEntity<Map<String, Object>> anonymousPost(String path, Map<String, ?> body) {
