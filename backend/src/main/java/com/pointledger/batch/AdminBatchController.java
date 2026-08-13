@@ -5,13 +5,20 @@ import com.pointledger.common.error.ErrorCode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -26,9 +33,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AdminBatchController {
 
+    private static final List<String> JOB_NAMES = List.of(
+            ExpireJobConfig.JOB_NAME, SettleJobConfig.JOB_NAME, ReconcileJobConfig.JOB_NAME);
+
     private final ExpireBatchScheduler expireScheduler;
     private final SettleBatchScheduler settleScheduler;
     private final ReconcileBatchScheduler reconcileScheduler;
+    private final JobExplorer jobExplorer;
 
     public record ExpireRunRequest(@NotNull LocalDate asOf) {
     }
@@ -89,5 +100,34 @@ public class AdminBatchController {
         String cause = e instanceof JobExecutionAlreadyRunningException
                 ? "ALREADY_RUNNING" : e.getClass().getSimpleName();
         return new DomainException(ErrorCode.BATCH_JOB_FAILED, Map.of("cause", cause));
+    }
+
+    // ── 실행 이력 — JobRepository 메타데이터가 곧 감사 기록이다 ────────────
+
+    public record ExecutionView(
+            Long executionId, String jobName, String status, String exitCode,
+            LocalDateTime startTime, LocalDateTime endTime, Map<String, String> parameters) {
+
+        static ExecutionView from(JobExecution e) {
+            return new ExecutionView(
+                    e.getId(), e.getJobInstance().getJobName(),
+                    e.getStatus().name(), e.getExitStatus().getExitCode(),
+                    e.getStartTime(), e.getEndTime(),
+                    e.getJobParameters().getParameters().entrySet().stream()
+                            .collect(Collectors.toMap(
+                                    Map.Entry::getKey, en -> String.valueOf(en.getValue().getValue()))));
+        }
+    }
+
+    /** 세 잡의 최근 실행을 시작 시각 역순으로 — "언제 무엇이 돌았고 어떻게 끝났나" */
+    @GetMapping("/admin/batch/executions")
+    public List<ExecutionView> executions(@RequestParam(defaultValue = "20") int limit) {
+        return JOB_NAMES.stream()
+                .flatMap(name -> jobExplorer.getJobInstances(name, 0, limit).stream())
+                .flatMap(instance -> jobExplorer.getJobExecutions(instance).stream())
+                .sorted(Comparator.comparing(JobExecution::getCreateTime).reversed())
+                .limit(limit)
+                .map(ExecutionView::from)
+                .toList();
     }
 }

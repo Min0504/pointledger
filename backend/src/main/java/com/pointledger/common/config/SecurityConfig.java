@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -40,7 +41,10 @@ public class SecurityConfig {
                         .requestMatchers("/auth/login", "/actuator/health",
                                 "/docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
-                        // 서버 간 API — 운영자 토큰으로는 호출 불가(호출 주체 감사 구분을 위해 의도적 분리)
+                        // 조회는 겸용 — 어드민의 지갑 검색·원장 타임라인이 같은 읽기 API를 쓴다.
+                        // 감사 주체 구분이 중요한 것은 원장에 기록을 남기는 쓰기 경로다
+                        .requestMatchers(HttpMethod.GET, "/wallets/**").hasAnyRole("SERVER", "ADMIN")
+                        // 쓰기 계열 — 운영자 토큰으로는 호출 불가(호출 주체 감사 구분을 위해 의도적 분리)
                         .requestMatchers("/wallets/**", "/points/**").hasRole("SERVER")
                         .anyRequest().denyAll())
                 .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)
