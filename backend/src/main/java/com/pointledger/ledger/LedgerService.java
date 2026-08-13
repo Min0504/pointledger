@@ -179,6 +179,45 @@ public class LedgerService {
         return new CancelResponse(cancelEntry.getId(), balanceAfter, restoredLots, graceLot);
     }
 
+    /**
+     * 만료 배치 청크의 쓰기 (Phase 5) — Spring Batch 스텝 트랜잭션에 참여한다.
+     * 이 메서드가 곧 청크의 트랜잭션 경계다: 실패하면 이 청크(기본 500건)만
+     * 롤백되고, JobRepository 메타데이터 덕에 다음 실행이 여기부터 재개된다.
+     *
+     * 온라인 요청과 같은 락 규약을 지킨다:
+     *   - 지갑 id 오름차순 잠금 — 여러 지갑을 한 트랜잭션에서 잠그므로 순서가
+     *     뒤섞이면 온라인 쓰기 경로와 데드락이 난다
+     *   - 락 아래에서 로트를 재조회 — 리더가 id를 뽑은 뒤 사용자가 소진한
+     *     로트는 remaining == 0으로 걸러진다 (이중 만료·과다 만료 방지)
+     */
+    @Transactional
+    public int expireLots(List<Long> lotIds) {
+        int expired = 0;
+        for (Long walletId : pointLotRepository.findWalletIdsByIdIn(lotIds)) {
+            Wallet wallet = walletRepository.findByIdForUpdate(walletId)
+                    .orElseThrow(() -> new DomainException(ErrorCode.WALLET_NOT_FOUND));
+
+            for (PointLot lot : pointLotRepository.findByWalletIdAndIdIn(walletId, lotIds)) {
+                if (lot.getRemaining() == 0) {
+                    continue; // 읽기와 락 획득 사이에 소진됨 — 만료할 것이 없다
+                }
+                long amount = lot.expire();
+                ledgerEntryRepository.save(LedgerEntry.builder()
+                        .walletId(walletId)
+                        .type(LedgerEntryType.EXPIRE)
+                        .amount(amount)
+                        .balanceAfter(wallet.getBalance() - amount)
+                        .refType("LOT")
+                        .refId(String.valueOf(lot.getId()))
+                        .createdBy("expire-batch")
+                        .build());
+                wallet.apply(LedgerEntryType.EXPIRE.signed(amount));
+                expired++;
+            }
+        }
+        return expired;
+    }
+
     @Transactional(readOnly = true)
     public LedgerPageResponse ledger(Long userId, Long cursor, int size) {
         Wallet wallet = walletRepository.findByUserId(userId)

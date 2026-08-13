@@ -1,6 +1,7 @@
 package com.pointledger.ledger;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -32,4 +33,17 @@ public interface PointLotRepository extends JpaRepository<PointLot, Long> {
             ORDER BY l.expiresAt, l.id
             """)
     List<PointLot> findFifoConsumable(@Param("walletId") Long walletId);
+
+    /** 만료 배치 청크의 지갑 그룹핑 — 오름차순 잠금 순서가 데드락을 예방한다 */
+    @Query("SELECT DISTINCT l.walletId FROM PointLot l WHERE l.id IN :ids ORDER BY l.walletId")
+    List<Long> findWalletIdsByIdIn(@Param("ids") Collection<Long> ids);
+
+    /**
+     * 지갑 락을 잡은 뒤의 신선한 재조회용 — 리더가 id를 읽은 시점과 지갑 락
+     * 획득 사이에 사용자가 로트를 소진했을 수 있다. 락 아래에서 다시 읽어야
+     * remaining이 진실이다 (배치 vs 온라인 경합, 기획서 문제 4).
+     */
+    @Query("SELECT l FROM PointLot l WHERE l.walletId = :walletId AND l.id IN :ids ORDER BY l.id")
+    List<PointLot> findByWalletIdAndIdIn(
+            @Param("walletId") Long walletId, @Param("ids") Collection<Long> ids);
 }
