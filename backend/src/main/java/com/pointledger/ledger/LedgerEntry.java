@@ -57,6 +57,10 @@ public class LedgerEntry {
     @Column(name = "related_entry_id")
     private Long relatedEntryId;
 
+    /** 사용이 일어난 가맹점 — 정산 집계의 근거. 미지정이면 정산 대상에서 제외 */
+    @Column(name = "merchant_id")
+    private Long merchantId;
+
     /** ADMIN 계열은 스키마 CHECK로 NOT NULL 강제 — 사유 없는 수동 조작은 기록될 수 없다 */
     @Column(length = 200)
     private String reason;
@@ -70,7 +74,7 @@ public class LedgerEntry {
     @Builder
     private LedgerEntry(Long walletId, LedgerEntryType type, long amount, long balanceAfter,
             String refType, String refId, String idempotencyKey, Long relatedEntryId,
-            String reason, String createdBy) {
+            Long merchantId, String reason, String createdBy) {
         this.walletId = walletId;
         this.type = type;
         this.amount = amount;
@@ -79,6 +83,7 @@ public class LedgerEntry {
         this.refId = refId;
         this.idempotencyKey = idempotencyKey;
         this.relatedEntryId = relatedEntryId;
+        this.merchantId = merchantId;
         this.reason = reason;
         this.createdBy = createdBy;
     }

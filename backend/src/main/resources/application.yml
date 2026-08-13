@@ -42,6 +42,11 @@ pointledger:
     expire:
       cron: "0 0 4 * * *" # 새벽 4시 KST — 트래픽 저점, 자정 결제 경계와 거리를 둔다
       chunk-size: 500 # 크면 롤백 반경·락 보유가 늘고, 작으면 커밋 오버헤드가 는다
+    settle:
+      cron: "0 0 5 * * *" # 만료(04시) 뒤 — 전일 원장이 확정된 상태에서 집계한다
+    reconcile:
+      cron: "0 0 6 * * *" # 정산(05시) 뒤 — 3단 검사는 정산서가 있어야 의미가 있다
+      chunk-size: 500 # 외부 CSV 적재 청크
 
 springdoc:
   swagger-ui:

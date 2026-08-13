@@ -19,6 +19,8 @@ import com.pointledger.ledger.dto.LedgerDtos.RedeemRequest;
 import com.pointledger.ledger.dto.LedgerDtos.RedeemResponse;
 import com.pointledger.ledger.dto.LedgerDtos.RevokeRequest;
 import com.pointledger.ledger.dto.LedgerDtos.RevokeResponse;
+import com.pointledger.settlement.Merchant;
+import com.pointledger.settlement.MerchantRepository;
 import com.pointledger.wallet.Wallet;
 import com.pointledger.wallet.WalletRepository;
 import java.time.Duration;
@@ -56,6 +58,7 @@ public class LedgerService {
     private final LedgerEntryRepository ledgerEntryRepository;
     private final PointLotRepository pointLotRepository;
     private final LotConsumptionRepository lotConsumptionRepository;
+    private final MerchantRepository merchantRepository;
 
     /** 적립 — 원장 EARN + 로트 생성 + 잔액 반영이 한 트랜잭션 */
     @Transactional
@@ -80,8 +83,15 @@ public class LedgerService {
     /** 사용 — 지갑 행 락 → 잔액 검증 → 로트 FIFO 차감 → 원장 REDEEM → 잔액 차감 */
     @Transactional
     public RedeemResponse redeem(RedeemRequest req, String createdBy, String idempotencyKey) {
+        // 가맹점 지정 사용은 정산의 입력이 된다 — 잘못된 id가 원장에 박히면
+        // 정산서가 틀어지므로 락을 잡기 전에(가장 싼 시점에) 검증한다
+        if (req.merchantId() != null
+                && !merchantRepository.existsByIdAndStatus(req.merchantId(), Merchant.Status.ACTIVE)) {
+            throw new DomainException(ErrorCode.MERCHANT_NOT_FOUND,
+                    Map.of("merchantId", req.merchantId()));
+        }
         Debit debit = debit(req.userId(), LedgerEntryType.REDEEM, req.amount(),
-                req.refType(), req.refId(), null, createdBy, idempotencyKey);
+                req.refType(), req.refId(), null, req.merchantId(), createdBy, idempotencyKey);
         return new RedeemResponse(debit.entry().getId(), debit.balanceAfter(), debit.consumedLots());
     }
 
@@ -89,7 +99,7 @@ public class LedgerService {
     @Transactional
     public RevokeResponse revoke(RevokeRequest req, String createdBy, String idempotencyKey) {
         Debit debit = debit(req.userId(), LedgerEntryType.ADMIN_REVOKE, req.amount(),
-                "CS", null, req.reason(), createdBy, idempotencyKey);
+                "CS", null, req.reason(), null, createdBy, idempotencyKey);
         return new RevokeResponse(debit.entry().getId(), debit.balanceAfter(), debit.consumedLots());
     }
 
@@ -150,6 +160,9 @@ public class LedgerService {
                 .refType(redeemEntry.getRefType())
                 .refId(redeemEntry.getRefId())
                 .relatedEntryId(redeemEntryId)
+                // 취소는 원 사용의 가맹점을 이어받는다 — 정산에서 음수 라인이 되어
+                // 확정 전이면 총액에서 차감, 확정 후면 익일 차감 정산으로 이월된다
+                .merchantId(redeemEntry.getMerchantId())
                 .idempotencyKey(idempotencyKey)
                 .createdBy(createdBy)
                 .build());
@@ -288,7 +301,7 @@ public class LedgerService {
      * 외부 I/O가 생기면 반드시 트랜잭션 밖으로 뺀다.
      */
     private Debit debit(Long userId, LedgerEntryType type, long amount,
-            String refType, String refId, String reason,
+            String refType, String refId, String reason, Long merchantId,
             String createdBy, String idempotencyKey) {
         Wallet wallet = walletRepository.findByUserIdForUpdate(userId)
                 .orElseThrow(() -> new DomainException(ErrorCode.WALLET_NOT_FOUND));
@@ -309,6 +322,7 @@ public class LedgerService {
                 .refType(refType)
                 .refId(refId)
                 .reason(reason)
+                .merchantId(merchantId)
                 .idempotencyKey(idempotencyKey)
                 .createdBy(createdBy)
                 .build());
