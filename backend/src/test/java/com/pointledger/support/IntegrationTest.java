@@ -6,6 +6,7 @@ import com.pointledger.auth.Operator;
 import com.pointledger.auth.OperatorRepository;
 import com.pointledger.auth.Sha256;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -69,7 +70,8 @@ public abstract class IntegrationTest {
     @BeforeEach
     void resetDatabase() {
         jdbc.execute("""
-                TRUNCATE TABLE point_lots, ledger_entries, wallets, api_keys, operators
+                TRUNCATE TABLE idempotency_requests, point_lots, ledger_entries, wallets,
+                               api_keys, operators
                 RESTART IDENTITY CASCADE
                 """);
         apiKeyRepository.save(new ApiKey("order-server", Sha256.hex(API_KEY_RAW)));
@@ -78,8 +80,17 @@ public abstract class IntegrationTest {
 
     // ── HTTP 헬퍼 — 서버 간(X-API-Key)과 운영자(Bearer)를 명시적으로 구분 ──────
 
+    /** 매 호출이 새 UUID 키를 갖는다 — "서로 다른 논리적 요청"이 기본 의미 */
     protected ResponseEntity<Map<String, Object>> serverPost(String path, Map<String, ?> body) {
-        return exchange(HttpMethod.POST, path, body, apiKeyHeaders());
+        return serverPost(path, body, UUID.randomUUID().toString());
+    }
+
+    /** 멱등성 시나리오용 — 같은 키를 명시적으로 재사용해 "같은 요청의 재시도"를 표현 */
+    protected ResponseEntity<Map<String, Object>> serverPost(
+            String path, Map<String, ?> body, String idempotencyKey) {
+        HttpHeaders headers = apiKeyHeaders();
+        headers.set("Idempotency-Key", idempotencyKey);
+        return exchange(HttpMethod.POST, path, body, headers);
     }
 
     protected ResponseEntity<Map<String, Object>> serverGet(String path) {

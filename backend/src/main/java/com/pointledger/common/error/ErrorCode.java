@@ -24,6 +24,10 @@ public enum ErrorCode {
     // 원장
     INSUFFICIENT_BALANCE(HttpStatus.CONFLICT, "잔액이 부족합니다."),
 
+    // 멱등성
+    IDEMPOTENT_IN_PROGRESS(HttpStatus.CONFLICT, "같은 키의 요청이 처리 중입니다. 잠시 후 다시 시도해 주세요."),
+    IDEMPOTENCY_KEY_REUSED(HttpStatus.UNPROCESSABLE_ENTITY, "같은 멱등성 키로 다른 내용의 요청이 접수됐습니다."),
+
     // 공통
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");

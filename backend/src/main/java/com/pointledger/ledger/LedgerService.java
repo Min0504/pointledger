@@ -40,11 +40,11 @@ public class LedgerService {
      * lost update가 난다 (재현 테스트에서 20건 중 16건 소실). 쓰기 경로 전체가
      * 같은 락 규약을 따라야 만료 배치(Phase 5)와의 경합에서도 정합성이 유지된다.
      *
-     * [Phase 1 한정] 아직 멱등성 키를 받지 않는다 — 재시도 이중 적립 문제와
-     * 해결(요청 상태 테이블)은 Phase 3에서 재현 테스트와 함께 들어온다.
+     * 멱등성 키는 원장 행에도 남긴다 — 요청 상태 테이블(1차 방어)을 우회하는
+     * 코드 경로가 생겨도 partial unique index가 이중 기장을 DB에서 거부한다(2차 방어).
      */
     @Transactional
-    public EarnResponse earn(EarnRequest req, String createdBy) {
+    public EarnResponse earn(EarnRequest req, String createdBy, String idempotencyKey) {
         Wallet wallet = walletRepository.findByUserIdForUpdate(req.userId())
                 .orElseThrow(() -> new DomainException(ErrorCode.WALLET_NOT_FOUND));
 
@@ -56,6 +56,7 @@ public class LedgerService {
                 .balanceAfter(balanceAfter)
                 .refType(req.refType())
                 .refId(req.refId())
+                .idempotencyKey(idempotencyKey)
                 .createdBy(createdBy)
                 .build());
 
@@ -82,7 +83,7 @@ public class LedgerService {
      * lot_consumptions와 함께 들어온다.
      */
     @Transactional
-    public RedeemResponse redeem(RedeemRequest req, String createdBy) {
+    public RedeemResponse redeem(RedeemRequest req, String createdBy, String idempotencyKey) {
         Wallet wallet = walletRepository.findByUserIdForUpdate(req.userId())
                 .orElseThrow(() -> new DomainException(ErrorCode.WALLET_NOT_FOUND));
 
@@ -101,6 +102,7 @@ public class LedgerService {
                 .balanceAfter(balanceAfter)
                 .refType(req.refType())
                 .refId(req.refId())
+                .idempotencyKey(idempotencyKey)
                 .createdBy(createdBy)
                 .build());
 
