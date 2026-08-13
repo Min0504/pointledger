@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -35,7 +36,12 @@ public class Wallet {
     @Column(nullable = false)
     private long balance;
 
-    /** 낙관적 락 실험용(@Version은 experiment 브랜치에서만 활성) — 기본 전략은 비관적 락 */
+    /**
+     * [실험 브랜치] @Version 활성 — 커밋 시 UPDATE ... WHERE version = 읽은값이
+     * 자동으로 붙어, 읽기와 커밋 사이에 다른 트랜잭션이 끼어들면
+     * OptimisticLockingFailureException이 난다. 락 대기 없음, 대신 재시도 책임.
+     */
+    @Version
     @Column(nullable = false)
     private int version;
 

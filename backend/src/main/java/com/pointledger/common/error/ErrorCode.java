@@ -23,6 +23,8 @@ public enum ErrorCode {
 
     // 원장
     INSUFFICIENT_BALANCE(HttpStatus.CONFLICT, "잔액이 부족합니다."),
+    // [실험 브랜치] 낙관적 락 재시도 소진 — 호출자가 재시도해야 한다는 것 자체가 이 전략의 비용
+    CONFLICT_RETRY_EXHAUSTED(HttpStatus.CONFLICT, "동시 요청 경합으로 처리하지 못했습니다. 다시 시도해 주세요."),
 
     // 공통
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다."),
