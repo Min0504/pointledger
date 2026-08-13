@@ -70,8 +70,8 @@ public abstract class IntegrationTest {
     @BeforeEach
     void resetDatabase() {
         jdbc.execute("""
-                TRUNCATE TABLE idempotency_requests, point_lots, ledger_entries, wallets,
-                               api_keys, operators
+                TRUNCATE TABLE lot_consumptions, idempotency_requests, point_lots,
+                               ledger_entries, wallets, api_keys, operators
                 RESTART IDENTITY CASCADE
                 """);
         apiKeyRepository.save(new ApiKey("order-server", Sha256.hex(API_KEY_RAW)));
@@ -98,8 +98,14 @@ public abstract class IntegrationTest {
     }
 
     protected ResponseEntity<Map<String, Object>> adminPost(String path, Map<String, ?> body, String token) {
+        return adminPost(path, body, token, UUID.randomUUID().toString());
+    }
+
+    protected ResponseEntity<Map<String, Object>> adminPost(
+            String path, Map<String, ?> body, String token, String idempotencyKey) {
         HttpHeaders headers = jsonHeaders();
         headers.setBearerAuth(token);
+        headers.set("Idempotency-Key", idempotencyKey);
         return exchange(HttpMethod.POST, path, body, headers);
     }
 
