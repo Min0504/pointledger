@@ -1,5 +1,6 @@
 package com.pointledger.ledger;
 
+import com.pointledger.idempotency.IdempotencyManager;
 import com.pointledger.ledger.dto.LedgerDtos.EarnRequest;
 import com.pointledger.ledger.dto.LedgerDtos.EarnResponse;
 import com.pointledger.ledger.dto.LedgerDtos.RedeemRequest;
@@ -10,24 +11,40 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 서버 간 API (X-API-Key) — 적립/사용. 호출 주체(키 이름)가 원장 created_by로 남는다 */
+/**
+ * 서버 간 API (X-API-Key) — 적립/사용. 호출 주체(키 이름)가 원장 created_by로 남는다.
+ * 변경 계열은 Idempotency-Key 필수 — 네트워크는 "처리됐는지"를 알려주지 않으므로
+ * at-least-once 재시도는 호출자의 합리적 행동이고, 중복 제거는 수신자인 우리 책임이다.
+ */
 @RestController
 @RequiredArgsConstructor
 public class PointsController {
 
+    public static final String IDEM_KEY = "Idempotency-Key";
+
     private final LedgerService ledgerService;
+    private final IdempotencyManager idempotency;
 
     @PostMapping("/points/earn")
     @ResponseStatus(HttpStatus.CREATED)
-    public EarnResponse earn(@Valid @RequestBody EarnRequest request, Authentication caller) {
-        return ledgerService.earn(request, caller.getName());
+    public EarnResponse earn(
+            @RequestHeader(IDEM_KEY) String idemKey,
+            @Valid @RequestBody EarnRequest request,
+            Authentication caller) {
+        return idempotency.execute(idemKey, "/points/earn", request, HttpStatus.CREATED,
+                () -> ledgerService.earn(request, caller.getName(), idemKey));
     }
 
     @PostMapping("/points/redeem")
-    public RedeemResponse redeem(@Valid @RequestBody RedeemRequest request, Authentication caller) {
-        return ledgerService.redeem(request, caller.getName());
+    public RedeemResponse redeem(
+            @RequestHeader(IDEM_KEY) String idemKey,
+            @Valid @RequestBody RedeemRequest request,
+            Authentication caller) {
+        return idempotency.execute(idemKey, "/points/redeem", request, HttpStatus.OK,
+                () -> ledgerService.redeem(request, caller.getName(), idemKey));
     }
 }
