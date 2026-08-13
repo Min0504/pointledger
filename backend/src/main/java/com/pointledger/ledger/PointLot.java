@@ -78,6 +78,17 @@ public class PointLot {
         }
     }
 
+    /**
+     * 만료 소멸 — 배치 전용. 지금 남은 만큼만 EXPIRE로 나간다 (읽기 시점이
+     * 아니라 지갑 락 아래 재확인 시점의 remaining — 온라인 사용과의 경합 안전).
+     */
+    public long expire() {
+        long amount = this.remaining;
+        this.remaining = 0;
+        this.status = Status.EXPIRED;
+        return amount;
+    }
+
     /** 취소 복원 — 만료된 로트에는 호출하지 않는다(유예 로트 정책, LotPlanner 참조) */
     public void restore(long value) {
         if (value <= 0 || this.remaining + value > initialAmount) {

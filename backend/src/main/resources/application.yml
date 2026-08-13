@@ -20,6 +20,12 @@ spring:
   flyway:
     enabled: true
 
+  batch:
+    job:
+      enabled: false # 부팅 시 자동 실행 금지 — 기동은 스케줄러/테스트가 명시적으로
+    jdbc:
+      initialize-schema: never # 메타데이터 테이블도 Flyway가 소유한다 (V4)
+
 jwt:
   # 운영자(백오피스) 전용 — 서버 간 호출은 JWT가 아니라 X-API-Key를 쓴다 (기획서 §9)
   secret: ${JWT_SECRET}
@@ -30,6 +36,12 @@ pointledger:
     # 최초 기동 시 이 운영자 계정이 없으면 생성한다 — 내부 백오피스라 셀프 가입이 없다
     email: ${PL_ADMIN_EMAIL:admin@pointledger.io}
     password: ${PL_ADMIN_PASSWORD:}
+
+  batch:
+    scheduling-enabled: true
+    expire:
+      cron: "0 0 4 * * *" # 새벽 4시 KST — 트래픽 저점, 자정 결제 경계와 거리를 둔다
+      chunk-size: 500 # 크면 롤백 반경·락 보유가 늘고, 작으면 커밋 오버헤드가 는다
 
 springdoc:
   swagger-ui:

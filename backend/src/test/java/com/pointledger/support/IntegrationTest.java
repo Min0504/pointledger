@@ -46,6 +46,8 @@ public abstract class IntegrationTest {
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("jwt.secret", () -> "test-jwt-secret-must-be-32-bytes!!!");
+        // 배치는 명시적 기동으로만 검증한다 — 크론 트리거가 테스트에 끼어들면 비결정적
+        registry.add("pointledger.batch.scheduling-enabled", () -> "false");
     }
 
     protected static final String API_KEY_RAW = "plk_test-integration-key";
@@ -71,7 +73,8 @@ public abstract class IntegrationTest {
     void resetDatabase() {
         jdbc.execute("""
                 TRUNCATE TABLE lot_consumptions, idempotency_requests, point_lots,
-                               ledger_entries, wallets, api_keys, operators
+                               ledger_entries, wallets, api_keys, operators,
+                               batch_job_instance, shedlock
                 RESTART IDENTITY CASCADE
                 """);
         apiKeyRepository.save(new ApiKey("order-server", Sha256.hex(API_KEY_RAW)));
