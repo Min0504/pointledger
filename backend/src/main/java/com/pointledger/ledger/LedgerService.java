@@ -35,12 +35,17 @@ public class LedgerService {
     /**
      * 적립 — 원장 EARN + 로트 생성 + 잔액 반영이 한 트랜잭션.
      *
+     * 적립도 지갑 행 락을 잡는다: dirty checking의 잔액 갱신은 델타(+1000)가 아니라
+     * 절대값(SET balance = 읽은값+1000)이라, 증가만 하는 연산이어도 동시 적립끼리
+     * lost update가 난다 (재현 테스트에서 20건 중 16건 소실). 쓰기 경로 전체가
+     * 같은 락 규약을 따라야 만료 배치(Phase 5)와의 경합에서도 정합성이 유지된다.
+     *
      * [Phase 1 한정] 아직 멱등성 키를 받지 않는다 — 재시도 이중 적립 문제와
      * 해결(요청 상태 테이블)은 Phase 3에서 재현 테스트와 함께 들어온다.
      */
     @Transactional
     public EarnResponse earn(EarnRequest req, String createdBy) {
-        Wallet wallet = walletRepository.findByUserId(req.userId())
+        Wallet wallet = walletRepository.findByUserIdForUpdate(req.userId())
                 .orElseThrow(() -> new DomainException(ErrorCode.WALLET_NOT_FOUND));
 
         long balanceAfter = wallet.getBalance() + req.amount();
@@ -63,20 +68,22 @@ public class LedgerService {
     }
 
     /**
-     * 사용 — 잔액 검증 + 원장 REDEEM + 잔액 차감.
+     * 사용 — 지갑 행 락 → 잔액 검증 → 원장 REDEEM → 잔액 차감.
      *
-     * [Phase 1 한정 — 알려진 한계 두 가지]
-     * 1. 동시성: 아래 "읽고 → 검사하고 → 갱신"은 READ COMMITTED에서 두 트랜잭션이
-     *    같은 잔액을 읽으면 lost update가 난다. Phase 2에서 이 버그를 테스트로
-     *    재현한 뒤 지갑 행 비관적 락으로 직렬화한다 (재현 커밋 → 해결 커밋 쌍).
-     *    그동안의 최후 방어선은 DB CHECK(balance >= 0)다.
-     * 2. 로트: 어느 적립분에서 나갔는지(FIFO) 아직 기록하지 않는다 — 사용 취소·
-     *    만료 정확성이 로트 소비 기록을 요구하는 시점(Phase 4)에 lot_consumptions와
-     *    함께 들어온다.
+     * FOR UPDATE가 "읽고 → 검사하고 → 갱신"을 지갑 단위로 직렬화한다. 락 없이는
+     * READ COMMITTED에서 두 트랜잭션이 같은 잔액을 읽어 lost update가 났다
+     * (재현: RedeemConcurrencyTest — 이 파일의 이전 커밋에서 실패 상태로 보존).
+     * 락 선택 이유와 대안 비교는 WalletRepository.findByUserIdForUpdate 주석 참조.
+     * 트랜잭션 안에 외부 호출이 없어야 락 보유 시간이 짧게 유지된다 — PG 연동
+     * 같은 외부 I/O가 생기면 반드시 트랜잭션 밖으로 뺀다.
+     *
+     * [Phase 1 한정] 어느 적립분에서 나갔는지(FIFO)는 아직 기록하지 않는다 —
+     * 사용 취소·만료 정확성이 로트 소비 기록을 요구하는 시점(Phase 4)에
+     * lot_consumptions와 함께 들어온다.
      */
     @Transactional
     public RedeemResponse redeem(RedeemRequest req, String createdBy) {
-        Wallet wallet = walletRepository.findByUserId(req.userId())
+        Wallet wallet = walletRepository.findByUserIdForUpdate(req.userId())
                 .orElseThrow(() -> new DomainException(ErrorCode.WALLET_NOT_FOUND));
 
         if (wallet.getBalance() < req.amount()) {
