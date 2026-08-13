@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -62,6 +63,8 @@ public class Settlement {
         }
         this.status = Status.CONFIRMED;
         this.confirmedBy = operator;
-        this.confirmedAt = Instant.now();
+        // 저장 정밀도(PG timestamptz = 마이크로초)로 잘라 넣는다 — 안 그러면
+        // 확정 직후 응답과 이후 조회가 나노초만큼 다른 값을 보인다 (Linux JDK)
+        this.confirmedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
 }

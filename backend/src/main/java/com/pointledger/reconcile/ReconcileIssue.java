@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -69,6 +70,7 @@ public class ReconcileIssue {
         this.resolved = true;
         this.resolvedBy = operator;
         this.memo = memo;
-        this.resolvedAt = Instant.now();
+        // 저장 정밀도(마이크로초)로 절단 — 응답과 이후 조회가 같은 값이어야 한다
+        this.resolvedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
 }
