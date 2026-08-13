@@ -53,6 +53,10 @@ public class LedgerEntry {
     @Column(name = "idempotency_key", length = 64)
     private String idempotencyKey;
 
+    /** CANCEL이 되돌리는 원본 REDEEM — 내부 감사 연결. 외부 출처는 ref_*가 담당 */
+    @Column(name = "related_entry_id")
+    private Long relatedEntryId;
+
     /** ADMIN 계열은 스키마 CHECK로 NOT NULL 강제 — 사유 없는 수동 조작은 기록될 수 없다 */
     @Column(length = 200)
     private String reason;
@@ -65,7 +69,8 @@ public class LedgerEntry {
 
     @Builder
     private LedgerEntry(Long walletId, LedgerEntryType type, long amount, long balanceAfter,
-            String refType, String refId, String idempotencyKey, String reason, String createdBy) {
+            String refType, String refId, String idempotencyKey, Long relatedEntryId,
+            String reason, String createdBy) {
         this.walletId = walletId;
         this.type = type;
         this.amount = amount;
@@ -73,6 +78,7 @@ public class LedgerEntry {
         this.refType = refType;
         this.refId = refId;
         this.idempotencyKey = idempotencyKey;
+        this.relatedEntryId = relatedEntryId;
         this.reason = reason;
         this.createdBy = createdBy;
     }

@@ -61,4 +61,31 @@ public class PointLot {
         this.expiresAt = expiresAt;
         this.status = Status.ACTIVE;
     }
+
+    /** 만료 판정 — 경계 포함(expires_at == now도 만료). 소멸(EXPIRED 전환)은 배치의 몫이다 */
+    public boolean isExpiredAt(Instant now) {
+        return status == Status.EXPIRED || !expiresAt.isAfter(now);
+    }
+
+    public void consume(long value) {
+        if (value <= 0 || value > remaining) {
+            throw new IllegalArgumentException(
+                    "로트 차감 초과: remaining=" + remaining + ", requested=" + value);
+        }
+        this.remaining -= value;
+        if (this.remaining == 0) {
+            this.status = Status.EXHAUSTED;
+        }
+    }
+
+    /** 취소 복원 — 만료된 로트에는 호출하지 않는다(유예 로트 정책, LotPlanner 참조) */
+    public void restore(long value) {
+        if (value <= 0 || this.remaining + value > initialAmount) {
+            throw new IllegalArgumentException(
+                    "로트 복원 초과: remaining=" + remaining + ", initial=" + initialAmount
+                            + ", requested=" + value);
+        }
+        this.remaining += value;
+        this.status = Status.ACTIVE;
+    }
 }

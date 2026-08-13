@@ -1,6 +1,8 @@
 package com.pointledger.ledger;
 
 import com.pointledger.idempotency.IdempotencyManager;
+import com.pointledger.ledger.dto.LedgerDtos.CancelRequest;
+import com.pointledger.ledger.dto.LedgerDtos.CancelResponse;
 import com.pointledger.ledger.dto.LedgerDtos.EarnRequest;
 import com.pointledger.ledger.dto.LedgerDtos.EarnResponse;
 import com.pointledger.ledger.dto.LedgerDtos.RedeemRequest;
@@ -9,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -46,5 +49,19 @@ public class PointsController {
             Authentication caller) {
         return idempotency.execute(idemKey, "/points/redeem", request, HttpStatus.OK,
                 () -> ledgerService.redeem(request, caller.getName(), idemKey));
+    }
+
+    /** 사용 취소 — 바디 없으면 전액, {"amount": n}이면 부분 취소 */
+    @PostMapping("/points/redeem/{entryId}/cancel")
+    public CancelResponse cancel(
+            @RequestHeader(IDEM_KEY) String idemKey,
+            @PathVariable Long entryId,
+            @RequestBody(required = false) @Valid CancelRequest body,
+            Authentication caller) {
+        // 바디 생략과 {}를 같은 요청으로 정규화 — 멱등 해시가 표현 차이에 흔들리지 않게
+        CancelRequest request = body != null ? body : new CancelRequest(null);
+        String endpoint = "/points/redeem/" + entryId + "/cancel";
+        return idempotency.execute(idemKey, endpoint, request, HttpStatus.OK,
+                () -> ledgerService.cancel(entryId, request, caller.getName(), idemKey));
     }
 }

@@ -23,6 +23,9 @@ public enum ErrorCode {
 
     // 원장
     INSUFFICIENT_BALANCE(HttpStatus.CONFLICT, "잔액이 부족합니다."),
+    ENTRY_NOT_FOUND(HttpStatus.NOT_FOUND, "원장 기록을 찾을 수 없습니다."),
+    NOT_CANCELLABLE(HttpStatus.UNPROCESSABLE_ENTITY, "사용(REDEEM) 기록만 취소할 수 있습니다."),
+    CANCEL_EXCEEDS_REMAINING(HttpStatus.CONFLICT, "취소 가능 잔여를 초과했습니다."),
 
     // 멱등성
     IDEMPOTENT_IN_PROGRESS(HttpStatus.CONFLICT, "같은 키의 요청이 처리 중입니다. 잠시 후 다시 시도해 주세요."),
